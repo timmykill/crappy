@@ -76,61 +76,71 @@ def getGroupId():
     assert(ret != "")
     return ret
 
-# bot stuff
-## roba utile:
-##  update.effective_chat.id := identificatore chat, utile dopo
-from telegram.ext import *
-import telegram
+#files stuff
+from os import listdir, mkdir
+from os.path import join, isdir
 
-bot = telegram.Bot(token=config.token)
-updater = Updater(token=config.token, use_context=True)
-dispatcher = updater.dispatcher
-admin="tk_badcoffee"
+respath = "./res/"
 
-def start(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="bot per tekweb helper")
+def newProva(data, filepath):
+    mkdir(join(respath, data))
+    
+def listProve():
+    obj = [{ 
+              "data": f,
+              "path": join(respath, f, "prova.pdf"),
+              "soluz": [{ 
+                        "nome": s, 
+                        "path": join(respath, f, s)
+                  } for s in listdir(join(respath, f)) if s.endswith(".zip")]
+        } for f in listdir(respath) if isdir(join(respath, f))]
+    return sorted(obj, key=lambda a : a["data"])
 
-dispatcher.add_handler(CommandHandler('start', start))
+def provaExists(date):
+    provelist = [f for f in listdir(respath) if isdir(join(respath, f))]
+    return date in provelist
 
-def _set(update, context):
-    user = update.effective_user.username
-    if user != admin:
-        context.bot.send_message(chat_id=update.effective_chat.id, text="cant set")
-    else:
-        setGroupId(update.effective_chat.id)
-        context.bot.send_message(chat_id=update.effective_chat.id, text="gruppo settato")
+def getSoluzPath(date, username):
+    return join(respath, date, username + ".zip")
 
-dispatcher.add_handler(CommandHandler('set', _set))
+#bottle stuff
+from bottle import *
 
-charset = string.ascii_lowercase + string.digits 
-def getRandPwd(l = 8):
-    out = ""
-    for i in range(l):
-        out += random.choice(charset)
-    return out
+@route('/')
+def index():
+    return template('index', userList=getAllFromDb(), proveList=listProve())
 
-def isUserInGroup(username, _id):
-    return True
-        
-def pwd(update, context):
-    username = update.effective_user.username 
-    _id = update.effective_user.id 
-    if not isUserInGroup(username, _id):
-        context.bot.send_message(chat_id=update.effective_chat.id, text="non sei nel gruppo di tekweb, sry")
-        return
-    if (isInDb(username) ):
-        passwd = getFromDb(username)
-    else:
-        passwd = getRandPwd()
-        setInDb(username, passwd, _id)
-    resptext = "il tuo username: {}\nla tua password: {}".format(username, passwd)
-    context.bot.send_message(chat_id=update.effective_chat.id, text=resptext)
+@route('/res/<path:path>')
+def callback(path):
+    return static_file(path, root='/root/crappy/res/')
 
-dispatcher.add_handler(CommandHandler('pwd', pwd))
+@post('/upload')
+def upload():
+    def end(risultato, ok=False):
+        return template('''
+            <h3 style="color: {{color}}">{{risultato}}</h3>
+            <a href="/">torna alla home</a>
+        ''', risultato=risultato, color="green" if ok else "red")
 
+    username = request.forms.get('username')
+    if not isInDb(username):
+        return end("utente {} non in db".format(username))
 
-print(getGroupId())
+    passwd = request.forms.get('passwd')
+    if passwd != getFromDb(username):
+        return end("password errata")
 
-updater.start_polling()
+    data = request.forms.get('data')
+    if not provaExists(data):
+        return end("prova non esistente, contattami se vuoi aggiungerla")
 
+    upload = request.files.get('upload')
+    print(upload)
+    name, ext = os.path.splitext(upload.filename)
+    if ext != ".zip":
+        return end("solo zip ammessi")    
+    upload.save(getSoluzPath(data, username))
+    
+    return end("tutto ok", ok=True)
 
+run(host='0.0.0.0', port=80, server="tornado")
