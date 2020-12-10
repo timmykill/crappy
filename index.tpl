@@ -6,12 +6,16 @@
 	</style>
 </head>
 <body>
-	<h1>tekweb helper</h1>
+	<h1>{{nomeEsame}} helper</h1>
 
-	
 	<form action="/upload" method="post" enctype="multipart/form-data">
 		<p>upload soluzione</p>
-		<input name="data" type="text">data (formato yymmdd)</input><br>
+		<select name="data">
+		% for prova in proveList:
+			<option value="{{prova["data"]}}">{{prova["data"]}}</option>
+
+		% end
+		</select><br>
 		<input name="username" type="text">username</input><br>
 		<input name="passwd" type="password">password</input><br>
 		<input name="upload" type="file">soluzione in zip</input><br>
