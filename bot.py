@@ -3,101 +3,34 @@
 import random
 import string
 import config
-
-#db stuff
-import sqlite3
-with sqlite3.connect('tekweb_helper.db') as conn:
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users (
-                    username text PRIMARY KEY,
-                    passwd text NOT NULL,
-                    id text not null
-                );''')
-    c.execute('''CREATE TABLE IF NOT EXISTS g (
-                    num text PRIMARY KEY,
-                    id text not null
-                );''')
-
-def setInDb(user, pwd, _id):
-    with sqlite3.connect('tekweb_helper.db') as conn:
-        c = conn.cursor()
-        c.execute("insert or replace into users values (?, ?, ?);", (user, pwd, _id, )) 
-
-def isInDb(user):
-    ret = False
-    with sqlite3.connect('tekweb_helper.db') as conn:
-        c = conn.cursor()
-        c.execute("SELECT COUNT() FROM users WHERE username = ?;", (user,))
-        count = c.fetchone()[0]
-        assert(count <= 1)
-        ret = count == 1
-    return ret
-
-def getFromDb(user):
-    ret = ""
-    with sqlite3.connect('tekweb_helper.db') as conn:
-        c = conn.cursor()
-        c.execute("SELECT passwd FROM users WHERE username = ?;", (user,))
-        ret = c.fetchone()[0]
-    assert(ret != "")
-    return ret
-
-def getIdFromDb(user):
-    ret = ""
-    with sqlite3.connect('tekweb_helper.db') as conn:
-        c = conn.cursor()
-        c.execute("SELECT id FROM users WHERE username = ?;", (user,))
-        ret = c.fetchone()[0]
-    assert(ret != "")
-    return ret
-
-def getAllFromDb():
-    ret = []
-    with sqlite3.connect('tekweb_helper.db') as conn:
-        c = conn.cursor()
-        for row in c.execute("SELECT * FROM users;"):
-            ret.append({
-                    "username": row[0],
-                    "passwd": row[1]
-                })
-    return ret
-
-def setGroupId(_id):
-    with sqlite3.connect('tekweb_helper.db') as conn:
-        c = conn.cursor()
-        c.execute("insert or replace into g values (?, ?);", (1, _id, )) 
-
-def getGroupId():
-    ret = ""
-    with sqlite3.connect('tekweb_helper.db') as conn:
-        c = conn.cursor()
-        c.execute("SELECT id FROM g WHERE num = 1;")
-        ret = c.fetchone()[0]
-    assert(ret != "")
-    return ret
-
-# bot stuff
-## roba utile:
-##  update.effective_chat.id := identificatore chat, utile dopo
-from telegram.ext import *
+import dao
 import telegram
+from telegram.ext import *
 
 bot = telegram.Bot(token=config.token)
 updater = Updater(token=config.token, use_context=True)
 dispatcher = updater.dispatcher
-admin="tk_badcoffee"
 
-def start(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="bot per tekweb helper")
+usage='''
+        Bot di supporto per sito per la condivisione delle soluzioni d'esame
+        usage:
+            /set [solo admin] -> imposta il gruppo per il controllo degli accessi
+            /pwd (consigliabile utilizzare una chat privata con il bot) -> ricevi credenziali per il sito
+    '''
 
-dispatcher.add_handler(CommandHandler('start', start))
+
+def start_help(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, text=usage)
+
+dispatcher.add_handler(CommandHandler('start', start_help))
+dispatcher.add_handler(CommandHandler('help', start_help))
 
 def _set(update, context):
     user = update.effective_user.username
-    if user != admin:
-        context.bot.send_message(chat_id=update.effective_chat.id, text="cant set")
+    if user != config.admin:
+        context.bot.send_message(chat_id=update.effective_chat.id, text="devi essere l'admin per settare il gruppo degli accessi")
     else:
-        setGroupId(update.effective_chat.id)
+        dao.setGroupId(update.effective_chat.id)
         context.bot.send_message(chat_id=update.effective_chat.id, text="gruppo settato")
 
 dispatcher.add_handler(CommandHandler('set', _set))
@@ -109,8 +42,16 @@ def getRandPwd(l = 8):
         out += random.choice(charset)
     return out
 
+#this doesnt work as it should
 def isUserInGroup(username, _id):
-    return True
+    try:
+        group_id = dao.getGroupId()
+        chatmember = bot.get_chat_member(group_id, _id)
+        print(chatmember) #logging while in production
+        return True 
+    except:
+        print("not worked, {}:{}".format(username, _id))
+        return True
         
 def pwd(update, context):
     username = update.effective_user.username 
@@ -118,18 +59,15 @@ def pwd(update, context):
     if not isUserInGroup(username, _id):
         context.bot.send_message(chat_id=update.effective_chat.id, text="non sei nel gruppo di tekweb, sry")
         return
-    if (isInDb(username) ):
-        passwd = getFromDb(username)
+    if (dao.existsUser(username)):
+        passwd = dao.getUser(username)["passwd"]
     else:
         passwd = getRandPwd()
-        setInDb(username, passwd, _id)
+        dao.setUser(username, passwd, _id)
     resptext = "il tuo username: {}\nla tua password: {}".format(username, passwd)
     context.bot.send_message(chat_id=update.effective_chat.id, text=resptext)
 
 dispatcher.add_handler(CommandHandler('pwd', pwd))
-
-
-print(getGroupId())
 
 updater.start_polling()
 
