@@ -72,4 +72,4 @@ def upload():
     
     return end("tutto ok", ok=True)
 
-run(host='0.0.0.0', port=config.port, server="tornado")
+run(host='0.0.0.0', port=int(config.port), server="tornado")
