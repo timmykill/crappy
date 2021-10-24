@@ -40,7 +40,7 @@
                 <div class="form-group">
                     <div class="custom-file">
                         <input type="file" class="custom-file-input" name="upload">
-                        <label class="custom-file-label" for="customFile">Soluzione in ZIP</label>
+                        <label class="custom-file-label" for="customFile">Soluzione in {{formatoSoluzione}}</label>
                     </div>
                 </div>
                 <input type="submit" class="btn btn-primary">
@@ -56,7 +56,11 @@
                 </thead>
                 % for prova in proveList:
                 <tr>
-                    <th><a href="{{prova["path"]}}">{{prova["data"]}}</a></th>
+                    <th>
+			% for p in prova["path"]:
+			<a href="{{p}}">{{prova["data"]}}</a><br>
+			%end
+		    </th>
                     % for s in prova["soluz"]:
                     <th><a href="{{s["path"]}}">{{s["nome"]}}</a></th>
                     % end

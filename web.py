@@ -10,6 +10,7 @@ from os import listdir, mkdir
 from os.path import join, isdir
 
 respath = "./res/"
+formato_soluzione = "pdf"
 
 def newProva(data, filepath):
     mkdir(join(respath, data))
@@ -17,11 +18,11 @@ def newProva(data, filepath):
 def listProve():
     obj = [{ 
               "data": f,
-              "path": join(respath, f, "prova.pdf"),
+              "path": [join(respath, f, p) for p in listdir(join(respath, f)) if p.startswith("prova")],
               "soluz": [{ 
                         "nome": s, 
                         "path": join(respath, f, s)
-                  } for s in listdir(join(respath, f)) if s.endswith(".zip")]
+                  } for s in listdir(join(respath, f)) if s.endswith(formato_soluzione) and not s.startswith("prova")]
         } for f in listdir(respath) if isdir(join(respath, f))]
     return sorted(obj, key=lambda a : a["data"])
 
@@ -30,14 +31,14 @@ def provaExists(date):
     return date in provelist
 
 def getSoluzPath(date, username):
-    return join(respath, date, username + ".zip")
+    return join(respath, date, username + formato_soluzione)
 
 #bottle stuff
 from bottle import *
 
 @route('/')
 def index():
-    return template('index', userList=dao.getAllUsers(), proveList=listProve(), nomeEsame=config.nomeEsame)
+    return template('index', userList=dao.getAllUsers(), proveList=listProve(), nomeEsame=config.nomeEsame, formatoSoluzione=formato_soluzione)
 
 @route('/res/<path:path>')
 def callback(path):
@@ -66,8 +67,8 @@ def upload():
     upload = request.files.get('upload')
     print(upload)
     name, ext = os.path.splitext(upload.filename)
-    if ext != ".zip":
-        return end("solo zip ammessi")    
+    if ext != formato_soluzione:
+        return end("solo " + formato_soluzione + " ammessi")    
     upload.save(getSoluzPath(data, username))
     
     return end("tutto ok", ok=True)
